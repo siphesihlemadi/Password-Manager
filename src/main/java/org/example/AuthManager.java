@@ -10,12 +10,10 @@ import java.sql.*;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.Scanner;
+
 
 public class AuthManager {
-    private String masterPassword;
     String dbName = "masterPasswordDatabase.db";
-    Scanner scanner = new Scanner(System.in);
     String url = "jdbc:sqlite:" + dbName;
 
     /**
@@ -158,5 +156,72 @@ public class AuthManager {
         Arrays.fill(b, (byte) 0);
     }
 
+    /**
+     * verifies that master password has not been created yet.
+     * creates master password database if it doesn't exist.
+     * try catches SQL exceptions and prints exception message
+     */
+    void createMasterPasswordTable() {
+        boolean newDatabase = !new File(dbName).exists();
+        try (Connection conn = DriverManager.getConnection(url)) {
+            if (newDatabase) {
+                try (Statement stmt = conn.createStatement()) {
+                    String createTable = "CREATE TABLE IF NOT EXISTS masterPassword (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                            "hash TEXT UNIQUE NOT NULL,";
+
+                    stmt.execute(createTable);
+                    System.out.println("Table Created.");
+                }
+            } else {
+                System.out.println("Master Password already exists. Enter Master Password.");
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    /**
+     * takes input (master password) passes it to the hash method then into the database.
+     * only stores hash string.
+     * try catches SQL exceptions and prints exception messages.
+     */
+    void insertMasterPassword(char[] masterPassword) {
+        String insertSql = "INSERT INTO masterPassword(hash) VALUES (?)";
+
+        try (Connection conn = DriverManager.getConnection(url);
+             PreparedStatement pstmt = conn.prepareStatement(insertSql)) {
+
+            pstmt.setString(1, hash(masterPassword));
+            pstmt.executeUpdate();
+            System.out.println("Master Password Stored.");
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+    }
+
+    /**
+     * compare hash and salt to database hash to verify user.
+     * return true is verification is successful.
+     */
+    boolean verifyMasterPassword(char[] inputMasterPassword) {
+        String selectSql = "SELECT * FROM masterPassword";
+
+        try (Connection conn = DriverManager.getConnection(url);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(selectSql)) {
+
+            while (rs.next()) {
+                String hash = rs.getString("hash");
+                if (verify(inputMasterPassword, hash)) return true;
+            }
+
+
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+        return false;
+    }
 }
 
